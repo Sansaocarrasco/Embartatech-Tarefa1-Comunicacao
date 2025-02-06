@@ -31,93 +31,46 @@ volatile int numero_atual = -1;
 volatile bool estado_led_verde = false;
 volatile bool estado_led_azul = false;
 
-// Definição de pixel GRB
-struct pixel_t
-{
-  uint8_t G, R, B; // Três valores de 8-bits compõem um pixel.
+struct pixel_t {
+    uint8_t G, R, B;
 };
-typedef struct pixel_t pixel_t;
-typedef pixel_t npLED_t; // Mudança de nome de "struct pixel_t" para "npLED_t" por clareza.
+typedef struct pixel_t npLED_t;
 
-// Declaração do buffer de pixels que formam a matriz.
 npLED_t leds[LED_COUNT];
+void npWrite();
 
-void npSetLED(const uint index, const uint8_t r, const uint8_t g, const uint8_t b) {
-    pio_sm_put_blocking(np_pio, sm, g);
-    pio_sm_put_blocking(np_pio, sm, r);
-    pio_sm_put_blocking(np_pio, sm, b);
+void npSetLED(uint index, uint8_t r, uint8_t g, uint8_t b) {
+    leds[index].R = r;
+    leds[index].G = g;
+    leds[index].B = b;
 }
 
 void npClear() {
     for (uint i = 0; i < LED_COUNT; i++)
         npSetLED(i, 0, 0, 0);
+    npWrite();
 }
 
-void npInit(uint pin)
-{
+void npInit(uint pin) {
+    uint offset = pio_add_program(pio0, &ws2818b_program);
+    np_pio = pio0;
+    sm = pio_claim_unused_sm(np_pio, true);
 
-  // Cria programa PIO.
-  uint offset = pio_add_program(pio0, &ws2818b_program);
-  np_pio = pio0;
-
-  // Toma posse de uma máquina PIO.
-  sm = pio_claim_unused_sm(np_pio, false);
-  if (sm < 0)
-  {
-    np_pio = pio1;
-    sm = pio_claim_unused_sm(np_pio, true); // Se nenhuma máquina estiver livre, panic!
-  }
-
-  // Inicia programa na máquina PIO obtida.
-  ws2818b_program_init(np_pio, sm, offset, pin, 800000.f);
-
-  // Limpa buffer de pixels.
-  for (uint i = 0; i < LED_COUNT; ++i)
-  {
-    leds[i].R = 0;
-    leds[i].G = 0;
-    leds[i].B = 0;
-  }
+    ws2818b_program_init(np_pio, sm, offset, pin, 800000.f);
+    npClear();
 }
 
-int getIndex(int x, int y)
-{
-  // Se a linha for par (0, 2, 4), percorremos da esquerda para a direita.
-  // Se a linha for ímpar (1, 3), percorremos da direita para a esquerda.
-  if (y % 2 == 0)
-  {
-    return 24 - (y * 5 + x); // Linha par (esquerda para direita).
-  }
-  else
-  {
-    return 24 - (y * 5 + (4 - x)); // Linha ímpar (direita para esquerda).
-  }
+int getIndex(int x, int y) {
+    return (y % 2 == 0) ? (24 - (y * 5 + x)) : (24 - (y * 5 + (4 - x)));
 }
 
-void npWrite()
-{
-  // Escreve cada dado de 8-bits dos pixels em sequência no buffer da máquina PIO.
-  for (uint i = 0; i < LED_COUNT; ++i)
-  {
-    pio_sm_put_blocking(np_pio, sm, leds[i].G);
-    pio_sm_put_blocking(np_pio, sm, leds[i].R);
-    pio_sm_put_blocking(np_pio, sm, leds[i].B);
-  }
-  sleep_us(100); // Espera 100us, sinal de RESET do datasheet.
-}
-
-void npWriteNumber(int num) {
-    if (num >= 0 && num <= 9) {
-        npClear();
-        for (int linha = 0; linha < 5; linha++) {
-            for (int coluna = 0; coluna < 5; coluna++) {
-                int posicao = 24 - (linha * 5 + coluna);
-                npSetLED(posicao, matrizes[num][linha][coluna][0],
-                         matrizes[num][linha][coluna][1],
-                         matrizes[num][linha][coluna][2]);
-            }
-        }
+void npWrite() {
+    for (uint i = 0; i < LED_COUNT; ++i) {
+        pio_sm_put_blocking(np_pio, sm, leds[i].G);
+        pio_sm_put_blocking(np_pio, sm, leds[i].R);
+        pio_sm_put_blocking(np_pio, sm, leds[i].B);
     }
+    sleep_us(100);
 }
 
 void atualizar_display() {
@@ -130,23 +83,37 @@ void atualizar_display() {
 
 void button_callback(uint gpio, uint32_t events) {
     uint32_t current_time = to_ms_since_boot(get_absolute_time());
+
     if (gpio == BUTTON_A && current_time - last_press_time_A > TIME_DEBOUNCE) {
         last_press_time_A = current_time;
         estado_led_verde = !estado_led_verde;
         gpio_put(LED_VERDE, estado_led_verde);
-        printf("Botao A pressionado: LED Verde %s\n", estado_led_verde ? "Ligado" : "Desligado");
         atualizar_display();
     }
+
     if (gpio == BUTTON_B && current_time - last_press_time_B > TIME_DEBOUNCE) {
         last_press_time_B = current_time;
         estado_led_azul = !estado_led_azul;
         gpio_put(LED_AZUL, estado_led_azul);
-        printf("Botao B pressionado: LED Azul %s\n", estado_led_azul ? "Ligado" : "Desligado");
         atualizar_display();
     }
 }
 
-// Função pra desenhar a matriz na matriz de LEDs.
+void npWriteNumber(int num) {
+    if (num >= 0 && num <= 9) {
+        npClear();
+        for (int linha = 0; linha < 5; linha++) {
+            for (int coluna = 0; coluna < 5; coluna++) {
+                int posicao = getIndex(linha, coluna);
+                npSetLED(posicao, matrizes[num][linha][coluna][0],
+                         matrizes[num][linha][coluna][1],
+                         matrizes[num][linha][coluna][2]);
+            }
+        }
+        npWrite();
+    }
+}
+
 void npDrawMatrix(int matriz[5][5][3]) {
     for (int linha = 0; linha < 5; linha++) {
         for (int coluna = 0; coluna < 5; coluna++) {
@@ -172,11 +139,11 @@ int main() {
 
     gpio_init(LED_VERDE);
     gpio_set_dir(LED_VERDE, GPIO_OUT);
-    gpio_put(LED_VERDE, 0);  // LED começa desligado
+    gpio_put(LED_VERDE, 0);
 
     gpio_init(LED_AZUL);
     gpio_set_dir(LED_AZUL, GPIO_OUT);
-    gpio_put(LED_AZUL, 0);  // LED começa desligado
+    gpio_put(LED_AZUL, 0);
 
     gpio_init(BUTTON_A);
     gpio_set_dir(BUTTON_A, GPIO_IN);
@@ -188,6 +155,8 @@ int main() {
 
     gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &button_callback);
     gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &button_callback);
+
+    npInit(LED_PIN);
     npClear();
     atualizar_display();
 
@@ -199,10 +168,9 @@ int main() {
                 if (c >= '0' && c <= '9') {
                     numero_atual = c - '0';
                     npWriteNumber(numero_atual);
-                    npDrawMatrix(matrizes[numero_atual]); // Usa o índice para acessar a matriz correta
+                    npDrawMatrix(matrizes[numero_atual]);
                 }
                 atualizar_display();
-
             }
         }
         sleep_ms(100);
