@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+firmware = 'build/comunicacao.uf2'
+elf = 'build/comunicacao.elf'
