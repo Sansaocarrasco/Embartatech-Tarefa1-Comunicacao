@@ -167,7 +167,7 @@ int main() {
                 ultimo_caractere = c;
                 if (c >= '0' && c <= '9') {
                     numero_atual = c - '0';
-                    npWriteNumber(numero_atual);
+                    //npWriteNumber(numero_atual);
                     npDrawMatrix(matrizes[numero_atual]);
                 }
                 atualizar_display();
