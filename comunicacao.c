@@ -15,19 +15,21 @@
 #define LED_PIN 7
 #define BUTTON_A 5
 #define BUTTON_B 6
-#define LED_RGB_VERDE 11
-#define LED_RGB_AZUL 12
+#define LED_VERDE 11
+#define LED_AZUL 12
 #define TIME_DEBOUNCE 500
 
 ssd1306_t ssd;
 PIO np_pio;
 uint sm;
-bool estado_led_verde = false;
-bool estado_led_azul = false;
+
 volatile uint32_t last_press_time_A = 0;
 volatile uint32_t last_press_time_B = 0;
 volatile char ultimo_caractere = ' ';
 volatile int numero_atual = -1;
+
+volatile bool estado_led_verde = false;
+volatile bool estado_led_azul = false;
 
 // Definição de pixel GRB
 struct pixel_t
@@ -131,12 +133,14 @@ void button_callback(uint gpio, uint32_t events) {
     if (gpio == BUTTON_A && current_time - last_press_time_A > TIME_DEBOUNCE) {
         last_press_time_A = current_time;
         estado_led_verde = !estado_led_verde;
+        gpio_put(LED_VERDE, estado_led_verde);
         printf("Botao A pressionado: LED Verde %s\n", estado_led_verde ? "Ligado" : "Desligado");
         atualizar_display();
     }
     if (gpio == BUTTON_B && current_time - last_press_time_B > TIME_DEBOUNCE) {
         last_press_time_B = current_time;
         estado_led_azul = !estado_led_azul;
+        gpio_put(LED_AZUL, estado_led_azul);
         printf("Botao B pressionado: LED Azul %s\n", estado_led_azul ? "Ligado" : "Desligado");
         atualizar_display();
     }
@@ -155,21 +159,33 @@ void npDrawMatrix(int matriz[5][5][3]) {
 
 int main() {
     stdio_init_all();
+
     i2c_init(I2C_PORT, 400 * 1000);
     gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
     gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
     gpio_pull_up(I2C_SDA);
     gpio_pull_up(I2C_SCL);
+
     ssd1306_init(&ssd, WIDTH, HEIGHT, false, ENDERECO, I2C_PORT);
     ssd1306_config(&ssd);
     ssd1306_send_data(&ssd);
-    npInit(LED_PIN);
+
+    gpio_init(LED_VERDE);
+    gpio_set_dir(LED_VERDE, GPIO_OUT);
+    gpio_put(LED_VERDE, 0);  // LED começa desligado
+
+    gpio_init(LED_AZUL);
+    gpio_set_dir(LED_AZUL, GPIO_OUT);
+    gpio_put(LED_AZUL, 0);  // LED começa desligado
+
     gpio_init(BUTTON_A);
     gpio_set_dir(BUTTON_A, GPIO_IN);
     gpio_pull_up(BUTTON_A);
+
     gpio_init(BUTTON_B);
     gpio_set_dir(BUTTON_B, GPIO_IN);
     gpio_pull_up(BUTTON_B);
+
     gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &button_callback);
     gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &button_callback);
     npClear();
@@ -183,9 +199,9 @@ int main() {
                 if (c >= '0' && c <= '9') {
                     numero_atual = c - '0';
                     npWriteNumber(numero_atual);
+                    npDrawMatrix(matrizes[numero_atual]); // Usa o índice para acessar a matriz correta
                 }
                 atualizar_display();
-                npDrawMatrix(matrizes[numero_atual]); // Usa o índice para acessar a matriz correta
 
             }
         }
