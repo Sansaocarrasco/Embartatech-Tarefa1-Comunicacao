@@ -75,6 +75,7 @@ target_link_libraries(comunicacao
         hardware_i2c
         hardware_pio
         hardware_clocks
+        hardware_uart
         )
 
 pico_add_extra_outputs(comunicacao) 

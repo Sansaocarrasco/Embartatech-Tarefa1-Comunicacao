@@ -39,6 +39,8 @@
     "files.associations": {
         "stdlib.h": "c",
         "clocks.h": "c",
-        "ws2818b.pio.h": "c"
+        "ws2818b.pio.h": "c",
+        "uart.h": "c",
+        "i2c.h": "c"
     }
 }
