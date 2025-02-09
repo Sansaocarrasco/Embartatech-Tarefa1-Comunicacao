@@ -38,7 +38,7 @@ A tarefa requer os seguintes componentes conectados à placa **BitDogLab**:
 
 O vídeo associado a esta prática pode ser acessado no link a seguir:
 
-*link do video aqui*
+https://youtu.be/T8cTxiIBelk
 
 *Fonte: autor*
 
